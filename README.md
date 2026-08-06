@@ -228,7 +228,7 @@ environment variables:
       │  Google Sign-In → ID token
       ▼
   GitHub Pages (static React)            Google Cloud Run (FastAPI, container)
-  omrishavit.github.io/aprea/...   ──►   verifies the ID token on every /api call
+  omri-shavit.github.io/aprea/...   ──►   verifies the ID token on every /api call
                                              │
                                              ▼
                                        Cloud SQL (Postgres)
@@ -256,10 +256,10 @@ These require your Google/GitHub accounts, so I can't do them for you:
    ```
 2. **OAuth 2.0 Web client id** — APIs & Services → Credentials → *Create
    credentials* → *OAuth client ID* → **Web application**. Under *Authorized
-   JavaScript origins* add `https://omrishavit.github.io`. Copy the client id
+   JavaScript origins* add `https://omri-shavit.github.io`. Copy the client id
    (looks like `xxxx.apps.googleusercontent.com`). If `aprea.com` is a Google
    Workspace domain, restrict the OAuth consent screen to *Internal*.
-3. **GitHub repo** named **`aprea`** under the `omrishavit` account, with the
+3. **GitHub repo** named **`aprea`** under the `omri-shavit` account, with the
    contents of this `wee1-evidence-app/` folder at its root. Enable Pages
    (Settings → Pages → *Deploy from a branch* → `gh-pages` / `root`).
 
@@ -282,7 +282,7 @@ gcloud run deploy wee1-evidence-api \
     --add-cloudsql-instances=INSTANCE_CONNECTION_NAME \
     --set-env-vars=REQUIRE_AUTH=true,ALLOWED_EMAIL_DOMAIN=aprea.com \
     --set-env-vars=GOOGLE_CLIENT_ID=YOUR_OAUTH_CLIENT_ID \
-    --set-env-vars=ALLOWED_ORIGINS=https://omrishavit.github.io \
+    --set-env-vars=ALLOWED_ORIGINS=https://omri-shavit.github.io \
     --set-env-vars='DATABASE_URL=postgresql+psycopg2://wee1_app:CHOOSE_A_STRONG_PASSWORD@/wee1?host=/cloudsql/INSTANCE_CONNECTION_NAME'
 ```
 
@@ -306,14 +306,14 @@ Push to `main`. The included workflow (`.github/workflows/deploy-frontend.yml`)
 builds with `VITE_BASE=/aprea/searchable-wee1-inhibitor-database/` and publishes
 into that subfolder of the `gh-pages` branch. The app goes live at:
 
-**`https://omrishavit.github.io/aprea/searchable-wee1-inhibitor-database/`**
+**`https://omri-shavit.github.io/aprea/searchable-wee1-inhibitor-database/`**
 
 ### Order of operations & gotchas
 
 - Deploy the **backend first** — you need its URL for `VITE_API_BASE_URL`.
 - The OAuth client's *Authorized JavaScript origins* must include
-  `https://omrishavit.github.io`, or Google Sign-In silently fails.
-- `ALLOWED_ORIGINS` on Cloud Run must include `https://omrishavit.github.io`, or
+  `https://omri-shavit.github.io`, or Google Sign-In silently fails.
+- `ALLOWED_ORIGINS` on Cloud Run must include `https://omri-shavit.github.io`, or
   the browser blocks the cross-origin API calls (CORS).
 - Cloud SQL `db-f1-micro` is the cheapest tier; for a pure demo you can instead
   skip Cloud SQL and run SQLite by omitting `DATABASE_URL` and `--add-cloudsql-instances`

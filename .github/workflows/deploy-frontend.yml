@@ -3,7 +3,7 @@ name: Deploy frontend to GitHub Pages
 # Builds the Vite app and publishes it into the
 # `searchable-wee1-inhibitor-database/` subfolder of the gh-pages branch, so the
 # app is served at:
-#   https://omrishavit.github.io/aprea/searchable-wee1-inhibitor-database/
+#   https://omri-shavit.github.io/aprea/searchable-wee1-inhibitor-database/
 #
 # Assumes this repo is named `aprea` and its root contains `frontend/`.
 # Configure these repo-level Variables (Settings -> Secrets and variables ->
