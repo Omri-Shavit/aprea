@@ -308,6 +308,34 @@ into that subfolder of the `gh-pages` branch. The app goes live at:
 
 **`https://omri-shavit.github.io/aprea/searchable-wee1-inhibitor-database/`**
 
+#### Self-hosted runner on GCP (if GitHub-hosted runners fail)
+
+GitHub's shared runners can queue for a long time or fail with internal errors.
+This repo's deploy workflow uses a **self-hosted runner** on a small GCP VM instead.
+
+**One-time setup (~10 min):**
+
+1. **Create the VM** (PowerShell, from `scripts/`):
+   ```powershell
+   .\create-gcp-runner-vm.ps1
+   ```
+2. **Get a registration token** — GitHub → `Omri-Shavit/aprea` → **Settings** →
+   **Actions** → **Runners** → **New self-hosted runner** → **Linux** → copy token
+   (expires in ~1 hour).
+3. **SSH into the VM and install the runner:**
+   ```bash
+   gcloud compute ssh github-actions-runner --zone=us-central1-a --project=wee1-inhibitor-database
+
+   curl -fsSL https://raw.githubusercontent.com/Omri-Shavit/aprea/main/scripts/setup-gcp-actions-runner.sh -o setup.sh
+   chmod +x setup.sh
+   sudo ./setup.sh YOUR_REGISTRATION_TOKEN
+   ```
+4. Confirm the runner shows **Idle** under **Settings → Actions → Runners**.
+5. **Actions → Deploy frontend to GitHub Pages → Run workflow**.
+
+The VM (`e2-small`, ~$12/mo if always on) only runs when a job is queued. Stop it
+when not needed: `gcloud compute instances stop github-actions-runner --zone=us-central1-a`
+
 ### Order of operations & gotchas
 
 - Deploy the **backend first** — you need its URL for `VITE_API_BASE_URL`.

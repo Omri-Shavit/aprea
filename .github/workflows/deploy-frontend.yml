@@ -28,7 +28,9 @@ concurrency:
 
 jobs:
   build-and-deploy:
-    runs-on: ubuntu-latest
+    # Self-hosted runner on a GCP VM (see scripts/create-gcp-runner-vm.ps1).
+    # Labels must match the runner registered in setup-gcp-actions-runner.sh.
+    runs-on: [self-hosted, linux, gcp]
     defaults:
       run:
         working-directory: frontend
