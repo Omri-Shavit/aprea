@@ -39,6 +39,13 @@ body {
 }
 .app-header h1 { margin: 0; font-size: 20px; letter-spacing: -0.01em; }
 .app-header p { margin: 4px 0 0; opacity: 0.85; font-size: 13px; }
+.dummy-data-badge {
+  display: inline-block;
+  border: 1.5px solid #f5c542;
+  border-radius: 6px;
+  padding: 1px 7px;
+  color: #f5c542;
+}
 .header-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
 .header-right { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
 .user-chip { display: flex; align-items: center; gap: 10px; }
@@ -274,3 +281,14 @@ tbody tr:hover { background: rgb(243, 238, 244); }
 .page-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
 .page-btn:hover:not(:disabled) .arrow { background: var(--accent); color: white; }
 .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ---------- Footer ---------- */
+.app-footer {
+  border-top: 1px solid var(--border);
+  margin-top: 12px;
+  padding: 16px 28px 24px;
+  text-align: center;
+}
+.app-footer p { margin: 0; font-size: 12px; color: var(--muted); }
+.app-footer a { color: var(--accent); text-decoration: none; font-weight: 600; }
+.app-footer a:hover { text-decoration: underline; color: var(--accent-dark); }

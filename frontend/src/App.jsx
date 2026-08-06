@@ -29,7 +29,7 @@ export default function App() {
             <h1>WEE1 Inhibition • Evidence Matrix</h1>
             <p>
               Searchable landscape of biomarkers associated with WEE1-inhibitor response
-              &nbsp;·&nbsp; <em>mockup with dummy data</em>
+              &nbsp;·&nbsp; <span className="dummy-data-badge"><em>mockup with dummy data</em></span>
             </p>
           </div>
           <div className="header-right">
@@ -77,6 +77,14 @@ export default function App() {
           <Insights includeConfidential={includeConfidential} />
         )}
       </div>
+
+      <footer className="app-footer">
+        <p>
+          <a href="https://github.com/Omri-Shavit" target="_blank" rel="noopener noreferrer">
+            &copy; 2026 Omri Shavit
+          </a>
+        </p>
+      </footer>
     </div>
   );
 }
