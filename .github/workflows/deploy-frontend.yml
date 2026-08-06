@@ -2,6 +2,7 @@ name: Deploy frontend to GitHub Pages
 
 # Builds the Vite app and publishes to gh-pages/searchable-wee1-inhibitor-database/
 # Live URL: https://omri-shavit.github.io/aprea/searchable-wee1-inhibitor-database/
+# Auth: VITE_REQUIRE_AUTH=false (no login wall).
 #
 # Requires a self-hosted runner (see scripts/create-gcp-runner-vm.ps1).
 # Repo Variables (Settings → Actions → Variables):
