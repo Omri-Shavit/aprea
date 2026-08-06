@@ -220,6 +220,18 @@ curl "http://localhost:8000/api/insights/biomarker-ranking"
 
 ## Deployment (production)
 
+> **Current status: live.** Both pieces are deployed and wired together end-to-end:
+> - **Backend** (FastAPI on Cloud Run + Cloud SQL Postgres):
+>   [`https://wee1-evidence-api-57264445243.us-central1.run.app`](https://wee1-evidence-api-57264445243.us-central1.run.app)
+> - **Frontend** (React on GitHub Pages):
+>   [`https://omri-shavit.github.io/aprea/searchable-wee1-inhibitor-database/`](https://omri-shavit.github.io/aprea/searchable-wee1-inhibitor-database/)
+>
+> `REQUIRE_AUTH=false` (no login wired up yet), and the Cloud SQL DB password lives
+> in **Secret Manager** (`wee1-db-url` secret, mounted as the `DATABASE_URL` env var
+> on Cloud Run) rather than as a plaintext env var. The sections below are the
+> from-scratch setup steps that produced this state — useful if you need to
+> redeploy, rotate credentials, or stand up a second environment.
+
 The app is built to deploy as three pieces, each configured entirely through
 environment variables:
 
@@ -275,6 +287,13 @@ gcloud sql users create wee1_app --instance=wee1-db --password='CHOOSE_A_STRONG_
 # The instance connection name, e.g. YOUR_PROJECT_ID:us-central1:wee1-db
 gcloud sql instances describe wee1-db --format='value(connectionName)'
 
+# Put the DB connection string in Secret Manager instead of a plain env var
+# (avoid the raw value ending up in shell history — pipe it in or use a temp
+# file you delete right after)
+gcloud services enable secretmanager.googleapis.com
+echo -n 'postgresql+psycopg2://wee1_app:CHOOSE_A_STRONG_PASSWORD@/wee1?host=/cloudsql/INSTANCE_CONNECTION_NAME' \
+    | gcloud secrets create wee1-db-url --data-file=-
+
 # Deploy the container straight from backend/ source
 cd backend
 gcloud run deploy wee1-evidence-api \
@@ -282,14 +301,30 @@ gcloud run deploy wee1-evidence-api \
     --add-cloudsql-instances=INSTANCE_CONNECTION_NAME \
     --set-env-vars=REQUIRE_AUTH=false \
     --set-env-vars=ALLOWED_ORIGINS=https://omri-shavit.github.io \
-    --set-env-vars='DATABASE_URL=postgresql+psycopg2://wee1_app:CHOOSE_A_STRONG_PASSWORD@/wee1?host=/cloudsql/INSTANCE_CONNECTION_NAME'
+    --update-secrets=DATABASE_URL=wee1-db-url:latest
+
+# Grant the Cloud Run runtime service account access to the secret (one-time;
+# find the SA via `gcloud run services describe wee1-evidence-api
+# --region=us-central1 --format='value(spec.template.spec.serviceAccountName)'`
+# — empty means it's the default compute SA, PROJECT_NUMBER-compute@developer.gserviceaccount.com)
+gcloud secrets add-iam-policy-binding wee1-db-url \
+    --member='serviceAccount:PROJECT_NUMBER-compute@developer.gserviceaccount.com' \
+    --role='roles/secretmanager.secretAccessor'
 ```
 
 > `--allow-unauthenticated` means Cloud Run IAM won't block browser requests.
 > **`REQUIRE_AUTH=false`** (current default) leaves the API open — fine for the
 > dummy-data demo. Set `REQUIRE_AUTH=true` once Microsoft Entra ID login is wired.
-> Prefer keeping the DB password in **Secret Manager**
-> (`--set-secrets=DATABASE_URL=wee1-db-url:latest`) rather than inline.
+> The DB password is kept in **Secret Manager** (`wee1-db-url`, mounted as the
+> `DATABASE_URL` env var via `--update-secrets`) rather than as a plaintext
+> `--set-env-vars` value — this is the actual production setup, not just a
+> suggestion. To rotate the password later: `gcloud sql users set-password
+> wee1_app --instance=wee1-db --password=NEW_PASSWORD`, then `gcloud secrets
+> versions add wee1-db-url --data-file=-` with the updated connection string,
+> then re-run the `gcloud run deploy`/`update` command so Cloud Run resolves the
+> new `:latest` version into a fresh revision (Cloud Run pins the secret version
+> at revision-creation time, so simply adding a secret version doesn't affect
+> already-running revisions).
 > On first boot the app auto-creates tables and seeds the dummy rows into Postgres.
 
 Note the service URL it prints (e.g. `https://wee1-evidence-api-xxxx-uc.a.run.app`).
