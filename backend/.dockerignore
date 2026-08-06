@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+wee1.db
+.env
+.env.*
+!.env.example

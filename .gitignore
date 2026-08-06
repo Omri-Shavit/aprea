@@ -1,0 +1,16 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Local database (regenerated + seeded on launch)
+backend/wee1.db
+
+# Node / Vite
+node_modules/
+dist/
+
+# Secrets / local env (keep .env.example tracked)
+.env
+.env.*
+!.env.example
