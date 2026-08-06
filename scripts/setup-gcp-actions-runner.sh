@@ -57,7 +57,7 @@ sudo -u "${RUNNER_USER}" bash -c "
     --url '${REPO_URL}' \
     --token '${TOKEN}' \
     --name 'gcp-$(hostname)' \
-    --labels 'self-hosted,linux,gcp' \
+    --labels 'self-hosted,Linux,X64' \
     --unattended \
     --replace
 "
