@@ -280,16 +280,16 @@ cd backend
 gcloud run deploy wee1-evidence-api \
     --source . --region=us-central1 --allow-unauthenticated \
     --add-cloudsql-instances=INSTANCE_CONNECTION_NAME \
-    --set-env-vars=REQUIRE_AUTH=true,ALLOWED_EMAIL_DOMAIN=aprea.com \
-    --set-env-vars=GOOGLE_CLIENT_ID=YOUR_OAUTH_CLIENT_ID \
+    --set-env-vars=REQUIRE_AUTH=false \
     --set-env-vars=ALLOWED_ORIGINS=https://omri-shavit.github.io \
     --set-env-vars='DATABASE_URL=postgresql+psycopg2://wee1_app:CHOOSE_A_STRONG_PASSWORD@/wee1?host=/cloudsql/INSTANCE_CONNECTION_NAME'
 ```
 
-> `--allow-unauthenticated` here means Cloud Run's own IAM won't block requests;
-> access is instead enforced by our in-app `@aprea.com` token check, which is what
-> lets browsers hit it directly. Prefer keeping the DB password in **Secret
-> Manager** (`--set-secrets=DATABASE_URL=wee1-db-url:latest`) rather than inline.
+> `--allow-unauthenticated` means Cloud Run IAM won't block browser requests.
+> **`REQUIRE_AUTH=false`** (current default) leaves the API open — fine for the
+> dummy-data demo. Set `REQUIRE_AUTH=true` once Microsoft Entra ID login is wired.
+> Prefer keeping the DB password in **Secret Manager**
+> (`--set-secrets=DATABASE_URL=wee1-db-url:latest`) rather than inline.
 > On first boot the app auto-creates tables and seeds the dummy rows into Postgres.
 
 Note the service URL it prints (e.g. `https://wee1-evidence-api-xxxx-uc.a.run.app`).
@@ -300,9 +300,11 @@ In the `aprea` repo, set **Settings → Secrets and variables → Actions →
 Variables** (repo *Variables*, not secrets — they're baked into a public bundle):
 
 - `VITE_API_BASE_URL` = the Cloud Run URL from step 1
-- `VITE_GOOGLE_CLIENT_ID` = your OAuth client id
 
-Push to `main`. The included workflow (`.github/workflows/deploy-frontend.yml`)
+Auth is **off** in production builds (`VITE_REQUIRE_AUTH=false` in the workflow).
+No login screen until Microsoft Entra ID is added later.
+
+Push to `main`.
 builds with `VITE_BASE=/aprea/searchable-wee1-inhibitor-database/` and publishes
 into that subfolder of the `gh-pages` branch. The app goes live at:
 

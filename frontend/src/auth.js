@@ -1,12 +1,12 @@
-// Client-side auth helpers for Google Sign-In.
+// Client-side auth gate (Sign-In UI). Backend `REQUIRE_AUTH` is the real enforcement.
 //
-// IMPORTANT: this only controls what the UI shows. Real enforcement happens in
-// the backend (it verifies the same ID token). If VITE_GOOGLE_CLIENT_ID is unset
-// (local dev), the login gate is disabled and no token is sent.
+// Auth is ON only when VITE_REQUIRE_AUTH=true (and a provider client id is configured).
+// Production currently ships with auth off until Microsoft Entra ID is wired up.
 
 export const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
 export const ALLOWED_DOMAIN = import.meta.env.VITE_ALLOWED_DOMAIN || "aprea.com";
-export const authRequired = Boolean(GOOGLE_CLIENT_ID);
+export const authRequired =
+  import.meta.env.VITE_REQUIRE_AUTH === "true" && Boolean(GOOGLE_CLIENT_ID);
 
 const TOKEN_KEY = "wee1_id_token";
 

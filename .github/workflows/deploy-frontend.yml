@@ -6,7 +6,9 @@ name: Deploy frontend to GitHub Pages
 # Requires a self-hosted runner (see scripts/create-gcp-runner-vm.ps1).
 # Repo Variables (Settings → Actions → Variables):
 #   VITE_API_BASE_URL      Cloud Run URL (optional until backend is deployed)
-#   VITE_GOOGLE_CLIENT_ID  OAuth Web client id
+#
+# Auth is OFF in production builds (VITE_REQUIRE_AUTH=false below).
+# When Microsoft Entra ID is ready, set VITE_REQUIRE_AUTH=true and add client ids.
 
 on:
   push:
@@ -43,7 +45,7 @@ jobs:
         env:
           VITE_BASE: /aprea/searchable-wee1-inhibitor-database/
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
-          VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
+          VITE_REQUIRE_AUTH: "false"
           VITE_ALLOWED_DOMAIN: aprea.com
 
       - name: Publish to gh-pages (subfolder)
