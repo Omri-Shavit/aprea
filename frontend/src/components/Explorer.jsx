@@ -203,6 +203,10 @@ export default function Explorer({ vocab, includeConfidential }) {
                   <td>{r.n}</td>
                   <td>
                     <button className="btn danger" onClick={async () => {
+                      const confirmed = window.confirm(
+                        `Are you sure you want to delete this observation? ${r.compound} — ${r.biomarker_name} — ${r.indication} (${r.model_type})`
+                      );
+                      if (!confirmed) return;
                       await api.deleteEvidence(r.id);
                       setData((d) => ({ ...d, items: d.items.filter((x) => x.id !== r.id), total: d.total - 1 }));
                     }}>Delete</button>
