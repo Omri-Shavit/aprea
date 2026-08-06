@@ -9,7 +9,7 @@
 $ErrorActionPreference = "Stop"
 
 $Project = "wee1-inhibitor-database"
-$Zone = "us-central1-a"
+$Zone = "us-east1-b"   # us-central1-* was exhausted; change if you recreate the VM
 $Instance = "github-actions-runner"
 $MachineType = "e2-small"   # 2 vCPU, 2 GB — enough for npm ci + vite build
 
