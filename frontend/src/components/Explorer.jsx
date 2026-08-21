@@ -74,7 +74,7 @@ function humanizeFamily(s) {
   if (!s) return s;
   return s
     .replace(/_/g, " ")
-    .replace(/\b(parp|pikk|pikk|ber|dna)\b/gi, (m) => m.toUpperCase())
+    .replace(/\b(parp|pikk|ber|dna)\b/gi, (m) => m.toUpperCase())
     .replace(/^./, (c) => c.toUpperCase());
 }
 
