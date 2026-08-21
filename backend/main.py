@@ -4,16 +4,22 @@ DDR Evidence Matrix API
 
 A FastAPI service implementing the "searchable evidence matrix" from the
 program brief, covering **all DNA-damage-response targets** (WEE1, ATR, ATM,
-CHK1, DNA-PK, PARP, PKMYT1, POLQ, USP1, DYRK1A/B, ...). Four capabilities:
+CHK1, DNA-PK, PARP, PKMYT1, POLQ, USP1, DYRK1A/B, ...). Three capabilities:
 
-  1. ALTER     -> POST/PATCH/DELETE /api/evidence   (create/update/remove rows)
-  2. ACCESS    -> GET /api/evidence                 (search/filter/sort/paginate)
-  3. DICTIONARY-> GET /api/compounds                (the controlled drug dictionary)
-  4. INSIGHTS  -> GET /api/insights/*               (aggregations & rankings)
+  1. ACCESS    -> GET /api/evidence                 (search/filter/sort/paginate)
+  2. DICTIONARY-> GET /api/compounds                (the controlled drug dictionary)
+  3. INSIGHTS  -> GET /api/insights/*               (aggregations & rankings)
 
 `GET /api/vocab` returns the distinct values present in the data plus the
 cascade maps (`compounds_by_target`, `combo_partners_by_track`) that drive the
 frontend's dependent dropdowns.
+
+**This API is read-only.** There are no create/update/delete routes: the
+database is altered only by the curation pipeline, via `python ingest.py`
+against `backend/data/*.json`. That keeps a single, reviewable path into the
+data - every row traceable to a harvested source - instead of letting anyone
+with the URL edit the evidence base. Restoring write access means putting it
+behind real authentication first (see `auth.py`), not simply re-adding routes.
 
 All /api/* routes are protected by `require_user` (Google Sign-In, @aprea.com).
 Auth is enforced only when REQUIRE_AUTH=true, so local dev stays zero-config.
@@ -52,15 +58,7 @@ import insights as insights_mod
 import vocabulary as vocab
 from auth import ALLOWED_EMAIL_DOMAIN, REQUIRE_AUTH, require_user
 from database import get_session, init_db
-from models import (
-    Compound,
-    CompoundCreate,
-    CompoundRead,
-    Evidence,
-    EvidenceCreate,
-    EvidenceRead,
-    EvidenceUpdate,
-)
+from models import Compound, CompoundRead, Evidence, EvidenceRead
 
 log = logging.getLogger("uvicorn.error")
 
@@ -146,78 +144,6 @@ api = APIRouter(prefix="/api", dependencies=[Depends(require_user)])
 # the API derives the fields it can derive rather than rejecting rows that omit
 # them. Every derivation is reversible by supplying the field explicitly.
 # --------------------------------------------------------------------------
-
-# Keyword -> combination track, used only to repair rows that name a partner but
-# leave `combination_track` at its "monotherapy" default. Radiotherapy is tested
-# first so "chemoradiation" lands in the radiotherapy track.
-_TRACK_KEYWORDS = [
-    ("radiotherapy", ("radiat", "radio", "irradiat", "rt ", " rt", "sbrt", "imrt")),
-    (
-        "chemotherapy",
-        (
-            "chemo", "platin", "carboplatin", "cisplatin", "oxaliplatin", "gemcitabine",
-            "paclitaxel", "docetaxel", "taxane", "irinotecan", "topotecan", "doxorubicin",
-            "temozolomide", "cytarabine", "pemetrexed", "capecitabine", "5-fu",
-            "fluorouracil", "etoposide", "cyclophosphamide",
-        ),
-    ),
-]
-
-
-def _infer_track(partner: str) -> str:
-    """Best-effort track for a named combination partner; defaults to targeted_agent."""
-    text = (partner or "").lower()
-    for track, keywords in _TRACK_KEYWORDS:
-        if any(k in text for k in keywords):
-            return track
-    return "targeted_agent"
-
-
-def _reconcile_regimen(data: Dict[str, Any]) -> None:
-    """Keep `combination_track`, `combo_partner` and `is_monotherapy` consistent.
-
-    Rules (normalize, never reject):
-      * a non-monotherapy track  -> `is_monotherapy = False`
-      * the default monotherapy track but a named partner -> infer the track
-        from the partner and set `is_monotherapy = False`
-      * the monotherapy track and no named partner -> `is_monotherapy = True`
-    """
-    track = data.get("combination_track") or "monotherapy"
-    partner = (data.get("combo_partner") or "").strip() or None
-
-    if track != "monotherapy":
-        data["combination_track"] = track
-        data["is_monotherapy"] = False
-    elif partner:
-        data["combination_track"] = _infer_track(partner)
-        data["is_monotherapy"] = False
-    else:
-        data["combination_track"] = "monotherapy"
-        data["is_monotherapy"] = True
-
-
-def _derive_fields(data: Dict[str, Any]) -> Dict[str, Any]:
-    """Fill in the derivable evidence fields, then reconcile the regimen."""
-    if not data.get("endpoint_class") and data.get("response_metric"):
-        data["endpoint_class"] = vocab.endpoint_class_for(data["response_metric"])
-    if not data.get("indication_category") and data.get("indication"):
-        data["indication_category"] = vocab.categorize_indication(data["indication"])
-    if not data.get("target_family") and data.get("target"):
-        data["target_family"] = vocab.TARGET_FAMILY.get(data["target"])
-    _reconcile_regimen(data)
-    return data
-
-
-def _evidence_from_payload(payload: EvidenceCreate) -> Evidence:
-    return Evidence.model_validate(_derive_fields(payload.model_dump()))
-
-
-def _compound_from_payload(payload: CompoundCreate) -> Compound:
-    data = payload.model_dump()
-    if not data.get("target_family") and data.get("target"):
-        data["target_family"] = vocab.TARGET_FAMILY.get(data["target"])
-    return Compound.model_validate(data)
-
 
 def _target_rank(target: Optional[str]) -> int:
     """Sort key placing canonical targets in `vocabulary.TARGETS` order, others last."""
@@ -536,108 +462,6 @@ def get_compound(compound_id: int, session: Session = Depends(get_session)):
     if not row:
         raise HTTPException(404, "Compound not found")
     return row
-
-
-@api.post("/compounds", response_model=CompoundRead, status_code=201, tags=["dictionary"])
-def create_compound(payload: CompoundCreate, session: Session = Depends(get_session)):
-    """Add one agent to the dictionary. `target_family` is derived if omitted."""
-    row = _compound_from_payload(payload)
-    session.add(row)
-    session.commit()
-    session.refresh(row)
-    return row
-
-
-@api.post("/compounds/bulk", response_model=dict, status_code=201, tags=["dictionary"])
-def bulk_create_compounds(payload: List[CompoundCreate], session: Session = Depends(get_session)):
-    """Insert many dictionary entries at once (e.g. output of the curation sheet)."""
-    rows = [_compound_from_payload(p) for p in payload]
-    session.add_all(rows)
-    session.commit()
-    return {"created": len(rows)}
-
-
-@api.delete("/compounds/{compound_id}", status_code=204, tags=["dictionary"])
-def delete_compound(compound_id: int, session: Session = Depends(get_session)):
-    row = session.get(Compound, compound_id)
-    if not row:
-        raise HTTPException(404, "Compound not found")
-    session.delete(row)
-    session.commit()
-
-
-# --------------------------------------------------------------------------
-# ALTER: create / update / delete evidence
-# --------------------------------------------------------------------------
-
-@api.post("/evidence", response_model=EvidenceRead, status_code=201, tags=["alter"])
-def create_evidence(payload: EvidenceCreate, session: Session = Depends(get_session)):
-    """Create one row. `endpoint_class`, `indication_category` and `target_family`
-    are derived from `vocabulary.py` when omitted, and the regimen fields are
-    reconciled (see `_reconcile_regimen`)."""
-    row = _evidence_from_payload(payload)
-    session.add(row)
-    session.commit()
-    session.refresh(row)
-    insight_cache.bump_version()
-    return row
-
-
-@api.patch("/evidence/{evidence_id}", response_model=EvidenceRead, tags=["alter"])
-def update_evidence(
-    evidence_id: int, payload: EvidenceUpdate, session: Session = Depends(get_session)
-):
-    """Partial update. Derived fields are recomputed only when their source
-    field changed and the derived field was not supplied explicitly."""
-    row = session.get(Evidence, evidence_id)
-    if not row:
-        raise HTTPException(404, "Evidence row not found")
-
-    patch = payload.model_dump(exclude_unset=True)
-    for field, value in patch.items():
-        setattr(row, field, value)
-
-    if "response_metric" in patch and "endpoint_class" not in patch and row.response_metric:
-        row.endpoint_class = vocab.endpoint_class_for(row.response_metric)
-    if "indication" in patch and "indication_category" not in patch and row.indication:
-        row.indication_category = vocab.categorize_indication(row.indication)
-    if "target" in patch and "target_family" not in patch and row.target:
-        row.target_family = vocab.TARGET_FAMILY.get(row.target)
-    if {"combination_track", "combo_partner", "is_monotherapy"} & patch.keys():
-        regimen = {
-            "combination_track": row.combination_track,
-            "combo_partner": row.combo_partner,
-            "is_monotherapy": row.is_monotherapy,
-        }
-        _reconcile_regimen(regimen)
-        row.combination_track = regimen["combination_track"]
-        row.is_monotherapy = regimen["is_monotherapy"]
-
-    session.add(row)
-    session.commit()
-    session.refresh(row)
-    insight_cache.bump_version()
-    return row
-
-
-@api.delete("/evidence/{evidence_id}", status_code=204, tags=["alter"])
-def delete_evidence(evidence_id: int, session: Session = Depends(get_session)):
-    row = session.get(Evidence, evidence_id)
-    if not row:
-        raise HTTPException(404, "Evidence row not found")
-    session.delete(row)
-    session.commit()
-    insight_cache.bump_version()
-
-
-@api.post("/evidence/bulk", response_model=dict, status_code=201, tags=["alter"])
-def bulk_create(payload: List[EvidenceCreate], session: Session = Depends(get_session)):
-    """Insert many rows at once (e.g. output of an ingestion/ETL script)."""
-    rows = [_evidence_from_payload(p) for p in payload]
-    session.add_all(rows)
-    session.commit()
-    insight_cache.bump_version()
-    return {"created": len(rows)}
 
 
 # --------------------------------------------------------------------------

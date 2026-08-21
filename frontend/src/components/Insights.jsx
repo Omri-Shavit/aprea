@@ -223,7 +223,7 @@ export default function Insights({ vocab }) {
             </select>
           </div>
           <p className="sub" style={{ margin: 0 }}>
-            Every panel below — summary, ranking, volcano, composition and landscape — is recomputed
+            Every panel below (summary, ranking, volcano, composition and landscape) is recomputed
             for the selected target.
           </p>
         </div>

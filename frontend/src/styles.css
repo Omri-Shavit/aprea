@@ -39,13 +39,6 @@ body {
 }
 .app-header h1 { margin: 0; font-size: 20px; letter-spacing: -0.01em; }
 .app-header p { margin: 4px 0 0; opacity: 0.85; font-size: 13px; }
-.dummy-data-badge {
-  display: inline-block;
-  border: 1.5px solid #f5c542;
-  border-radius: 6px;
-  padding: 1px 7px;
-  color: #f5c542;
-}
 .header-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
 .header-right { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
 .user-chip { display: flex; align-items: center; gap: 10px; }
@@ -183,10 +176,31 @@ body {
   font-weight: 600;
   border-color: rgb(216, 194, 214);
 }
-.cascade-arrow { color: var(--accent); font-size: 18px; font-weight: 700; padding-top: 32px; }
+/* The grid is top-aligned, so bottom-aligning the arrow and giving it a box the
+   height of one control lines it up with the dropdowns rather than the labels. */
+.cascade-arrow {
+  align-self: end;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+}
+.cascade-arrow-chip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: white;
+  border: 1px solid rgb(216, 194, 214);
+  color: var(--accent);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
 @media (max-width: 720px) {
   .primary-filters { grid-template-columns: 1fr; }
-  .cascade-arrow { display: none; }
+  /* Stacked layout: turn the connector down so it still reads as a cascade. */
+  .cascade-arrow { align-self: center; height: auto; transform: rotate(90deg); }
 }
 
 /* ---------- Grouped secondary filters ---------- */
@@ -312,7 +326,6 @@ body {
 }
 .btn:hover { background: var(--accent-dark); }
 .btn.secondary { background: white; color: var(--accent); border: 1px solid var(--border); }
-.btn.danger { background: transparent; color: var(--red); border: 1px solid var(--red-soft); padding: 4px 8px; font-size: 12px; }
 .btn.small { padding: 6px 12px; font-size: 12px; }
 
 /* ---------- Table ---------- */
@@ -415,17 +428,6 @@ tr.group-row:hover td { background: var(--accent-soft); }
 .legend { display: flex; gap: 16px; font-size: 12px; color: var(--muted); margin-top: 8px; flex-wrap: wrap; }
 .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
 
-/* ---------- Modal (add form) ---------- */
-.modal-backdrop { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.5); display: flex; align-items: center; justify-content: center; z-index: 50; }
-.modal { background: white; border-radius: 14px; padding: 24px; width: min(720px, 92vw); max-height: 88vh; overflow-y: auto; box-shadow: 0 20px 50px rgba(0,0,0,0.3); }
-.modal h2 { margin-top: 0; }
-.form-section { margin-bottom: 18px; }
-.form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
-.form-grid label { display: block; font-size: 11px; text-transform: uppercase; color: var(--muted); margin-bottom: 3px; letter-spacing: 0.03em; }
-.form-grid input, .form-grid select { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; }
-.form-check { display: flex; flex-direction: column; justify-content: flex-end; }
-.form-check input[type="checkbox"] { width: 18px; height: 18px; margin: 0 0 8px; }
-.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
 .pagination { display: flex; gap: 10px; align-items: center; justify-content: flex-end; margin-top: 12px; }
 .page-btn {
   display: inline-flex;

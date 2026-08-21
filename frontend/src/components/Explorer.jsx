@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { EMPTY, asArray, count, num, txt } from "../format";
-import AddEvidenceForm from "./AddEvidenceForm.jsx";
 
 // Secondary categorical filters, grouped so ~25 dropdowns stay navigable.
 const FILTER_GROUPS = [
@@ -181,7 +180,6 @@ export default function Explorer({ vocab }) {
   const [categoryMap, setCategoryMap] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [showAdd, setShowAdd] = useState(false);
   const limit = 25;
 
   const compoundsForTarget = useCallback(
@@ -405,7 +403,21 @@ export default function Explorer({ vocab }) {
             </select>
           </div>
           <div className="cascade-arrow" aria-hidden="true">
-            →
+            <span className="cascade-arrow-chip">
+              <svg
+                viewBox="0 0 16 16"
+                width="12"
+                height="12"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M2.5 8h10" />
+                <path d="M8.5 4l4 4-4 4" />
+              </svg>
+            </span>
           </div>
           <div className="filter filter-lg">
             <label>Drug</label>
@@ -518,7 +530,7 @@ export default function Explorer({ vocab }) {
           </div>
           {therapyMode === "combo" && (
             <p className="filter-hint block">
-              Each regimen track — chemotherapy, radiotherapy and targeted agents — can be analysed
+              Each regimen track (chemotherapy, radiotherapy and targeted agents) can be analysed
               on its own.
             </p>
           )}
@@ -531,9 +543,6 @@ export default function Explorer({ vocab }) {
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
-          <button className="btn" onClick={() => setShowAdd(true)}>
-            + Add evidence
-          </button>
           <button className="btn secondary" onClick={() => setShowMore((s) => !s)}>
             {showMore ? "Hide filters" : "More filters"}
             {secondaryActive > 0 ? ` (${secondaryActive})` : ""}
@@ -597,7 +606,7 @@ export default function Explorer({ vocab }) {
         <div className="active-filters">
           <span className="active-filters-label">Active filters</span>
           {activeChips.length === 0 ? (
-            <span className="filter-hint">None — showing the full matrix.</span>
+            <span className="filter-hint">None. Showing the full matrix.</span>
           ) : (
             <>
               {activeChips.map((c) => (
@@ -650,7 +659,6 @@ export default function Explorer({ vocab }) {
                   </th>
                 ))}
                 <th className="static-col">Source</th>
-                <th className="static-col"></th>
               </tr>
             </thead>
             <tbody>
@@ -701,30 +709,11 @@ export default function Explorer({ vocab }) {
                   <td>
                     <SourceCell row={r} />
                   </td>
-                  <td>
-                    <button
-                      className="btn danger"
-                      onClick={async () => {
-                        const confirmed = window.confirm(
-                          `Are you sure you want to delete this observation? ${r.compound} — ${r.biomarker_name} — ${r.indication} (${r.model_type})`
-                        );
-                        if (!confirmed) return;
-                        await api.deleteEvidence(r.id);
-                        setData((d) => ({
-                          ...d,
-                          items: asArray(d.items).filter((x) => x.id !== r.id),
-                          total: Math.max(0, (Number(d.total) || 0) - 1),
-                        }));
-                      }}
-                    >
-                      Delete
-                    </button>
-                  </td>
                 </tr>
               ))}
               {!loading && items.length === 0 && (
                 <tr>
-                  <td colSpan={COLUMNS.length + 2} className="loading">
+                  <td colSpan={COLUMNS.length + 1} className="loading">
                     No evidence rows match these filters.
                   </td>
                 </tr>
@@ -749,19 +738,6 @@ export default function Explorer({ vocab }) {
           </button>
         </div>
       </div>
-
-      {showAdd && (
-        <AddEvidenceForm
-          vocab={vocab}
-          onClose={() => setShowAdd(false)}
-          onCreated={() => {
-            setShowAdd(false);
-            setPage(0);
-            setSortBy("id");
-            setSortDir("desc");
-          }}
-        />
-      )}
     </>
   );
 }

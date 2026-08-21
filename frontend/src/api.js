@@ -1,5 +1,8 @@
 // Thin wrapper around the FastAPI backend.
 //
+// Read-only: the API exposes no create/update/delete routes, because the
+// evidence base is altered solely by the curation pipeline (`backend/ingest.py`).
+//
 // Base URL:
 //   * Local dev  -> VITE_API_BASE_URL unset => relative "/api" (Vite proxy).
 //   * Production -> VITE_API_BASE_URL = https://<cloud-run-url> (cross-origin).
@@ -65,20 +68,4 @@ export const api = {
     get("/insights/indication-landscape", { ...scope(params), by: params.by || "compound" }),
   volcano: (params) => get("/insights/volcano", scope(params)),
   targetOverview: (params) => get("/insights/target-overview", scope(params)),
-
-  createEvidence: async (body) => {
-    const res = await fetch(API + "/evidence", {
-      method: "POST",
-      headers: authHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify(body),
-    });
-    return handle(res, "/evidence");
-  },
-  deleteEvidence: async (id) => {
-    const res = await fetch(`${API}/evidence/${id}`, {
-      method: "DELETE",
-      headers: authHeaders(),
-    });
-    return handle(res, `/evidence/${id}`);
-  },
 };

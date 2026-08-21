@@ -91,18 +91,19 @@ Postgres locally. Leaving them unset keeps the two-command quickstart above.
 Two tabs:
 
 1. **Evidence Explorer** — free-text search (compound / alias / biomarker /
-  indication / citation), 13 filter dropdowns mapped 1:1 to the data-dictionary
-   categorical fields, a `max p-value` numeric filter, sortable columns
-   (click a header), pagination, per-row delete, and an **+ Add evidence** form
-   that writes through the API.
-2. **Insights & Ranking** — summary cards, a **candidate-biomarker ranking** bar
-  chart (composite evidence score), an **effect-size vs significance** volcano
-   scatter, **evidence composition** pies (source type + sensitive/resistant),
-   and the **indication × regimen landscape** heatmap.
-
-The header toggle **Include Aprea confidential rows** flows through every query
-and every insight, so you can see the public-only view vs the combined view — the
-mechanism for keeping confidential data segregated.
+   indication / citation / target / notes), cascading **Target → Drug**
+   dropdowns, a monotherapy/combination therapy-mode control, grouped secondary
+   filters mapped 1:1 to the data-dictionary categorical fields, `max p-value`
+   and `from year` numeric filters, sortable columns (click a header), and
+   pagination. The view is read-only.
+2. **Drug Dictionary** — the controlled list of DDR agents, grouped by target,
+   with aliases, developer, clinical stage, selectivity and known off-target
+   activity.
+3. **Insights & Ranking** — summary cards, a **candidate-biomarker ranking** bar
+   chart (eight-dimension composite score), an **effect-size vs significance**
+   volcano scatter, **evidence composition** pies, and the **indication ×
+   regimen landscape** heatmap. Every panel is recomputed for the selected
+   target.
 
 ---
 
@@ -141,15 +142,22 @@ Full interactive schema (try requests in the browser): `/docs`.
 
 
 
-### ALTER — create / update / delete
+### Altering the data
 
+The API is **read-only**. There are no create, update or delete routes, and the
+GUI has no editing controls. Rows enter the database one way only: the curation
+pipeline writes `backend/data/*.json`, and `python ingest.py` loads it.
 
-| Method | Path                 | Purpose                                                       |
-| ------ | -------------------- | ------------------------------------------------------------- |
-| POST   | `/api/evidence`      | Create one row. Body = evidence object (see data dictionary). |
-| PATCH  | `/api/evidence/{id}` | Partial update (only provided fields change).                 |
-| DELETE | `/api/evidence/{id}` | Delete a row.                                                 |
-| POST   | `/api/evidence/bulk` | Insert many rows (e.g. output of an ingestion script).        |
+```bash
+cd backend
+python ingest.py             # load; skips if the tables already hold rows
+python ingest.py --recreate  # drop and rebuild the tables first (schema changes)
+```
+
+This keeps a single reviewable path into the evidence base, so every row stays
+traceable to a harvested source rather than to whoever had the URL open. Write
+access should return only behind real authentication (see `auth.py`), at which
+point `insight_cache.bump_version()` has to be called from each write path.
 
 
 
@@ -184,22 +192,11 @@ r = requests.get(f"{BASE}/api/evidence", params={
 })
 print(r.json()["total"], "rows")
 
-# 2) ALTER — add a new observation
-new_row = {
-    "source_type": "peer_reviewed",
-    "citation": "Smith et al. 2025",
-    "compound": "azenosertib", "alias": "ZN-c3",
-    "indication": "Uterine serous carcinoma", "model_type": "patient",
-    "biomarker_name": "CCNE1 amplification", "biomarker_type": "cnv",
-    "response_metric": "ORR", "response_value": 42.0, "units": "%",
-    "direction": "sensitive", "effect_size": 0.55, "effect_size_type": "hazard_ratio",
-    "p_value": 0.003, "predictive_vs_prognostic": "predictive",
-    "reproducibility": "multi_dataset", "evidence_tier": "clinical",
-}
-created = requests.post(f"{BASE}/api/evidence", json=new_row).json()
-print("created id", created["id"])
+# 2) DICTIONARY - the controlled list of agents for one target
+drugs = requests.get(f"{BASE}/api/compounds", params={"target": "WEE1"}).json()
+print([d["canonical_name"] for d in drugs])
 
-# 3) INSIGHTS — ranked candidate biomarkers
+# 3) INSIGHTS - ranked candidate biomarkers
 ranking = requests.get(f"{BASE}/api/insights/biomarker-ranking").json()
 for row in ranking[:5]:
     print(row["biomarker_name"], row["composite_score"])
@@ -399,8 +396,10 @@ wee1-evidence-app/
 │   ├── auth.py               # Google ID-token verification + @aprea.com gate
 │   ├── models.py             # SQLModel table + request/response schemas
 │   ├── database.py           # env-driven engine (SQLite local / Postgres prod)
-│   ├── seed.py               # deterministic correlated dummy-data generator
+│   ├── ingest.py             # the only writer: loads data/*.json into the DB
+│   ├── vocabulary.py         # controlled vocabularies (targets, tracks, endpoints)
 │   ├── insights.py           # analytics: ranking, landscape, composition, volcano
+│   ├── insight_cache.py      # versioned in-process cache for the insight endpoints
 │   ├── Dockerfile            # container image for Cloud Run
 │   ├── .dockerignore
 │   ├── .env.example          # REQUIRE_AUTH / GOOGLE_CLIENT_ID / DATABASE_URL / ...
@@ -418,8 +417,8 @@ wee1-evidence-app/
         ├── styles.css
         └── components/
             ├── Login.jsx           # "Sign in with Google" landing page
-            ├── Explorer.jsx        # search + filters + table + delete
-            ├── AddEvidenceForm.jsx # POST /api/evidence
+            ├── Explorer.jsx        # search + cascading filters + table
+            ├── Compounds.jsx       # drug dictionary
             └── Insights.jsx        # charts
 ```
 
@@ -431,12 +430,12 @@ wee1-evidence-app/
 
 - **Schema**: `DATA_DICTIONARY.md` is the contract. Add a field there first, then to
 `models.py`, then it flows through the API and filters automatically.
-- **Ingestion**: replace `seed.py` with real ETL that pulls from ClinicalTrials.gov,
-PubMed, DepMap, etc. (see the primer's resource guide), normalizes onto the
-controlled vocabularies, and calls `POST /api/evidence/bulk`.
-- **Ranking**: the composite score is a transparent heuristic in `insights.py` —
-adjust the weights (`TIER_WEIGHT`, `REPRO_WEIGHT`, `SOURCE_WEIGHT`) or swap in a
-fitted model.
-- **Confidential data**: keep the `is_aprea_confidential` flag rigorous; the
-`include_confidential` parameter already segregates it end-to-end.
+- **Ingestion**: extend `ddr_scavenger/` to cover more sources (DepMap PRISM, CTRP,
+PharmacoDB, GEO), normalize onto `vocabulary.py`, and reload with
+`python ingest.py --recreate`.
+- **Ranking**: the composite score is a transparent heuristic in `insights.py`.
+Adjust the eight dimension weights (`SCORE_WEIGHTS`) or swap in a fitted model.
+- **Write access**: if privileged editing is needed, put it behind Microsoft Entra
+ID in `auth.py` and gate the routes on the verified user, rather than reopening
+the endpoints to anyone who can reach the service.
 

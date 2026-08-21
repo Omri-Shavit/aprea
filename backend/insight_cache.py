@@ -25,16 +25,17 @@ work is CPU-bound Python that the GIL would serialise regardless.
 
 Consistency
 -----------
-``bump_version()`` must be called by every write path; ``main.py`` does this on
-create, update and delete for both Evidence and Compound. Correctness therefore
-holds for any number of readers within one process.
+The API is read-only: nothing mutates the database while the process is running,
+because rows only ever arrive through ``ingest.py`` and a redeploy. A cached
+aggregate therefore cannot go stale mid-process, and ``RESULT_TTL`` is a
+belt-and-braces bound rather than something the design depends on.
 
-Caveat: the version counter is per process. If this service is ever scaled past
-one instance, a write served by instance A does not invalidate instance B, whose
-cached aggregates would stay stale for up to ``RESULT_TTL``. That bound is the
-reason results carry a TTL at all. For a multi-instance deployment, replace the
-counter with a shared marker (a row-version table, or Redis) rather than raising
-the TTL.
+``bump_version()`` remains the invalidation hook. If write endpoints are ever
+reintroduced behind authentication, every one of them must call it, and the
+per-process counter then stops being sufficient the moment the service runs more
+than one instance - a write served by instance A would not invalidate instance
+B. That case needs a shared marker (a row-version table, or Redis), not a
+shorter TTL.
 """
 
 from __future__ import annotations

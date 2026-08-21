@@ -34,9 +34,8 @@ export default function App() {
           <div>
             <h1>DDR Evidence Matrix</h1>
             <p>
-              Searchable landscape of biomarkers associated with DNA damage response inhibitor
-              response
-              &nbsp;·&nbsp; <span className="dummy-data-badge"><em>public data · build in progress</em></span>
+              Searchable landscape of biomarkers associated with DNA damage response [DDR]
+              inhibitor response
             </p>
           </div>
           <div className="header-right">
