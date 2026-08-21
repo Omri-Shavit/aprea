@@ -1,13 +1,19 @@
 import React, { useEffect, useState } from "react";
 import { api } from "./api";
 import { authRequired, currentUser, signOut } from "./auth";
+import Compounds from "./components/Compounds.jsx";
 import Explorer from "./components/Explorer.jsx";
 import Insights from "./components/Insights.jsx";
 import Login from "./components/Login.jsx";
 
+const TABS = [
+  ["explorer", "Evidence Explorer"],
+  ["compounds", "Drug Dictionary"],
+  ["insights", "Insights & Ranking"],
+];
+
 export default function App() {
   const [tab, setTab] = useState("explorer");
-  const [includeConfidential, setIncludeConfidential] = useState(true);
   const [vocab, setVocab] = useState(null);
   const [user, setUser] = useState(() => currentUser());
 
@@ -26,24 +32,14 @@ export default function App() {
       <header className="app-header">
         <div className="header-row">
           <div>
-            <h1>WEE1 Inhibition • Evidence Matrix</h1>
+            <h1>DDR Evidence Matrix</h1>
             <p>
-              Searchable landscape of biomarkers associated with WEE1-inhibitor response
-              &nbsp;·&nbsp; <span className="dummy-data-badge"><em>mockup with dummy data</em></span>
+              Searchable landscape of biomarkers associated with DNA damage response inhibitor
+              response
+              &nbsp;·&nbsp; <span className="dummy-data-badge"><em>public data · build in progress</em></span>
             </p>
           </div>
           <div className="header-right">
-            <label className="toggle" style={{ color: "white" }}>
-              <span className="switch switch--light">
-                <input
-                  type="checkbox"
-                  checked={includeConfidential}
-                  onChange={(e) => setIncludeConfidential(e.target.checked)}
-                />
-                <span className="slider"></span>
-              </span>
-              Include Aprea confidential rows
-            </label>
             {user && (
               <div className="user-chip">
                 <span className="user-email">{user.email}</span>
@@ -61,21 +57,22 @@ export default function App() {
           </div>
         </div>
         <div className="tabs">
-          <button className={`tab ${tab === "explorer" ? "active" : ""}`} onClick={() => setTab("explorer")}>
-            Evidence Explorer
-          </button>
-          <button className={`tab ${tab === "insights" ? "active" : ""}`} onClick={() => setTab("insights")}>
-            Insights &amp; Ranking
-          </button>
+          {TABS.map(([key, label]) => (
+            <button
+              key={key}
+              className={`tab ${tab === key ? "active" : ""}`}
+              onClick={() => setTab(key)}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       </header>
 
       <div className="container">
-        {tab === "explorer" ? (
-          <Explorer vocab={vocab} includeConfidential={includeConfidential} />
-        ) : (
-          <Insights includeConfidential={includeConfidential} />
-        )}
+        {tab === "explorer" && <Explorer vocab={vocab} />}
+        {tab === "compounds" && <Compounds vocab={vocab} />}
+        {tab === "insights" && <Insights vocab={vocab} />}
       </div>
 
       <footer className="app-footer">

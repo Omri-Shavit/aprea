@@ -3,8 +3,30 @@
 __pycache__/
 *.pyc
 
-# Local database (regenerated + seeded on launch)
+# Local database (recreated + ingested on launch)
 backend/wee1.db
+
+# Curated reference data (~84 MB). Deliberately untracked: it is a build
+# artefact of the harvest pipeline, not hand-authored source, and committing it
+# would add ~84 MB to history on every regeneration. Nothing in the deployment
+# reads it from git - `gcloud builds submit` uploads it from disk into the
+# container image.
+#
+# To regenerate (the pipeline itself IS tracked, in ddr_scavenger/):
+#   python ddr_scavenger/harvest_ddr.py     # query ClinicalTrials.gov, PubMed, GDSC
+#   python ddr_scavenger/build_evidence.py  # normalise + compute statistics -> backend/data/
+#   python ddr_scavenger/verify.py          # 30 audit checks; must pass
+#   python backend/ingest.py                # load into the database
+backend/data/
+
+# Harvest working files: raw API responses and the downloaded GDSC tables. Both
+# are re-fetched by harvest_ddr.py and are large.
+ddr_scavenger/data/
+ddr_scavenger/cache/
+
+# Local uvicorn logs
+backend/uvout.txt
+backend/uvlog.txt
 
 # Node / Vite
 node_modules/

@@ -1,0 +1,25 @@
+# What `gcloud builds submit` uploads. Without this file gcloud ignores
+# .dockerignore and uploads everything - including .venv, which is ~4,000 files
+# and most of a 272 MiB archive.
+#
+# backend/data/*.json is deliberately NOT excluded: the image carries the
+# curated reference data so the ingest job can load it.
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Local SQLite database and uvicorn logs.
+wee1.db
+uvout.txt
+uvlog.txt
+
+# Secrets never belong in a build context.
+.env
+.env.*
+!.env.example
+
+# Not needed at runtime.
+tests/
+requirements-dev.txt

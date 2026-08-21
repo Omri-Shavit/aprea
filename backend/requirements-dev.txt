@@ -1,0 +1,4 @@
+# Development/test-only dependencies. Deliberately kept out of requirements.txt
+# so the Cloud Run image does not ship a test framework.
+-r requirements.txt
+pytest==8.3.3

@@ -36,19 +36,35 @@ async function get(path, params = {}) {
   return handle(res, path);
 }
 
+// Every insight endpoint accepts the same optional scoping filters.
+const INSIGHT_SCOPE = [
+  "target",
+  "combination_track",
+  "indication_category",
+  "evidence_tier",
+  "perturbation_type",
+];
+
+function scope(params = {}) {
+  const out = {};
+  INSIGHT_SCOPE.forEach((k) => {
+    if (params[k]) out[k] = params[k];
+  });
+  return out;
+}
+
 export const api = {
   listEvidence: (params) => get("/evidence", params),
   vocab: () => get("/vocab"),
-  summary: (includeConfidential) =>
-    get("/insights/summary", { include_confidential: includeConfidential }),
-  composition: (includeConfidential) =>
-    get("/insights/composition", { include_confidential: includeConfidential }),
-  biomarkerRanking: (includeConfidential) =>
-    get("/insights/biomarker-ranking", { include_confidential: includeConfidential }),
-  indicationLandscape: (includeConfidential) =>
-    get("/insights/indication-landscape", { include_confidential: includeConfidential }),
-  volcano: (includeConfidential) =>
-    get("/insights/volcano", { include_confidential: includeConfidential }),
+  compounds: (params = {}) => get("/compounds", params),
+
+  summary: (params) => get("/insights/summary", scope(params)),
+  composition: (params) => get("/insights/composition", scope(params)),
+  biomarkerRanking: (params) => get("/insights/biomarker-ranking", scope(params)),
+  indicationLandscape: (params = {}) =>
+    get("/insights/indication-landscape", { ...scope(params), by: params.by || "compound" }),
+  volcano: (params) => get("/insights/volcano", scope(params)),
+  targetOverview: (params) => get("/insights/target-overview", scope(params)),
 
   createEvidence: async (body) => {
     const res = await fetch(API + "/evidence", {

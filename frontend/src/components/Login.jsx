@@ -59,10 +59,10 @@ export default function Login({ onSignedIn }) {
   return (
     <div className="login-screen">
       <div className="login-card">
-        <div className="login-badge">WEE1</div>
-        <h1>WEE1 Inhibition • Evidence Matrix</h1>
+        <div className="login-badge">DDR</div>
+        <h1>DDR Evidence Matrix</h1>
         <p className="login-sub">
-          Internal Aprea Therapeutics tool. Sign in with your{" "}
+          Aprea Therapeutics evidence tool. Sign in with your{" "}
           <strong>@{ALLOWED_DOMAIN}</strong> Google account to continue.
         </p>
         <div className="login-btn" ref={btnRef}></div>
