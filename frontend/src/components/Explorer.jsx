@@ -69,10 +69,19 @@ const THERAPY_MODES = [
   ["combo", "Combination"],
 ];
 
+// "checkpoint_kinase" -> "Checkpoint kinase",  "parp_family" -> "PARP family", etc.
+function humanizeFamily(s) {
+  if (!s) return s;
+  return s
+    .replace(/_/g, " ")
+    .replace(/\b(parp|pikk|pikk|ber|dna)\b/gi, (m) => m.toUpperCase())
+    .replace(/^./, (c) => c.toUpperCase());
+}
+
 const LABELS = {
   q: "Search",
-  target: "Target",
   target_family: "Target family",
+  target: "Target",
   compound: "Drug",
   indication_category: "Cancer type",
   indication: "Specific indication",
@@ -197,6 +206,16 @@ export default function Explorer({ vocab }) {
 
   const compoundOptions = useMemo(() => compoundsForTarget(target), [compoundsForTarget, target]);
 
+  // When a family is selected, narrow the Target dropdown to that family's targets.
+  const targetOptions = useMemo(() => {
+    const all = optionsFor("target");
+    if (!targetFamily) return all;
+    const byFamily = vocab?.targets_by_family;
+    if (!byFamily || typeof byFamily !== "object") return all;
+    const allowed = asArray(byFamily[targetFamily]);
+    return allowed.length ? allowed.filter((t) => all.includes(t)) : all;
+  }, [targetFamily, vocab, optionsFor]);
+
   // Prefer values actually present in the data, so a filter never offers an option
   // that returns nothing. Closed vocabularies fall back to the server's canonical
   // list (backend/vocabulary.py) so the controls still work on an empty database.
@@ -302,6 +321,19 @@ export default function Explorer({ vocab }) {
   const setFilter = (k, v) => setFilters((f) => ({ ...f, [k]: v || undefined }));
 
   // Changing the target invalidates a drug that belongs to another target.
+  const onFamilyChange = (next) => {
+    setTargetFamily(next);
+    // If the currently-selected target isn't in the new family, clear it (and drug).
+    if (next && target) {
+      const byFamily = vocab?.targets_by_family;
+      const allowed = byFamily ? asArray(byFamily[next]) : [];
+      if (allowed.length && !allowed.includes(target)) {
+        setTarget("");
+        setCompound("");
+      }
+    }
+  };
+
   const onTargetChange = (next) => {
     setTarget(next);
     if (compound && !compoundsForTarget(next).includes(compound)) setCompound("");
@@ -360,7 +392,7 @@ export default function Explorer({ vocab }) {
   };
   chip("q", q, () => setQ(""));
   chip("target", target, () => onTargetChange(""));
-  chip("target_family", targetFamily, () => setTargetFamily(""));
+  chip("target_family", targetFamily ? humanizeFamily(targetFamily) : "", () => onFamilyChange(""));
   chip("compound", compound, () => setCompound(""));
   chip("indication_category", indicationCategory, () => onCategoryChange(""));
   chip("indication", indication, () => setIndication(""));
@@ -386,16 +418,34 @@ export default function Explorer({ vocab }) {
       <div className="panel">
         <h2>Search &amp; filter the evidence matrix</h2>
         <p className="sub">
-          Start with a DDR target, then pick one of that target&apos;s drugs. Every row links back
+          Narrow by target family, then pick a specific target, then a drug. Every row links back
           to its source trial, dataset or publication.
         </p>
 
         <div className="primary-filters">
           <div className="filter filter-lg">
+            <label>Target family</label>
+            <select value={targetFamily} onChange={(e) => onFamilyChange(e.target.value)}>
+              <option value="">All families</option>
+              {optionsFor("target_family").map((v) => (
+                <option key={v} value={v}>
+                  {humanizeFamily(v)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="cascade-arrow" aria-hidden="true">
+            <span className="cascade-arrow-chip">
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M2.5 8h10" /><path d="M8.5 4l4 4-4 4" />
+              </svg>
+            </span>
+          </div>
+          <div className="filter filter-lg">
             <label>Target</label>
             <select value={target} onChange={(e) => onTargetChange(e.target.value)}>
-              <option value="">All targets</option>
-              {optionsFor("target").map((v) => (
+              <option value="">{targetFamily ? `All ${humanizeFamily(targetFamily)} targets` : "All targets"}</option>
+              {targetOptions.map((v) => (
                 <option key={v} value={v}>
                   {String(v)}
                 </option>
@@ -404,18 +454,8 @@ export default function Explorer({ vocab }) {
           </div>
           <div className="cascade-arrow" aria-hidden="true">
             <span className="cascade-arrow-chip">
-              <svg
-                viewBox="0 0 16 16"
-                width="12"
-                height="12"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M2.5 8h10" />
-                <path d="M8.5 4l4 4-4 4" />
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M2.5 8h10" /><path d="M8.5 4l4 4-4 4" />
               </svg>
             </span>
           </div>
@@ -432,17 +472,6 @@ export default function Explorer({ vocab }) {
             {target && compoundOptions.length === 0 && (
               <span className="filter-hint">No drugs recorded for {target} yet.</span>
             )}
-          </div>
-          <div className="filter filter-lg">
-            <label>Target family</label>
-            <select value={targetFamily} onChange={(e) => setTargetFamily(e.target.value)}>
-              <option value="">All families</option>
-              {optionsFor("target_family").map((v) => (
-                <option key={v} value={v}>
-                  {String(v)}
-                </option>
-              ))}
-            </select>
           </div>
         </div>
 

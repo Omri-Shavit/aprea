@@ -388,6 +388,16 @@ def vocabularies(session: Session = Depends(get_session)):
         canonical = _VOCAB_ORDER.get(field)
         out[field] = _ordered(values, canonical) if canonical else _sorted_ci(values)
 
+    # Family -> targets cascade, derived from vocabulary.py (static, no DB query).
+    targets_by_family: Dict[str, list] = {}
+    for target_name, family in vocab.TARGET_FAMILY.items():
+        targets_by_family.setdefault(family, []).append(target_name)
+    out["targets_by_family"] = {
+        f: _ordered(targets_by_family[f], vocab.TARGETS)
+        for f in _ordered(targets_by_family, vocab.TARGET_FAMILIES)
+        if f in targets_by_family
+    }
+
     # Target -> compounds cascade, from the (target, compound) pairs in the data.
     pairs = session.exec(
         select(Evidence.target, Evidence.compound)

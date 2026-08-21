@@ -160,7 +160,7 @@ body {
 /* ---------- Primary (target -> drug) selectors ---------- */
 .primary-filters {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) auto minmax(180px, 1fr) minmax(180px, 1fr);
+  grid-template-columns: minmax(160px, 1fr) auto minmax(160px, 1fr) auto minmax(160px, 1fr);
   gap: 12px;
   align-items: start;
   padding: 14px;
