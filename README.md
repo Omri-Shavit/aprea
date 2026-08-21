@@ -1,13 +1,20 @@
-# WEE1 Evidence Matrix — App Mockup
+# DDR Evidence Matrix
 
-A local, full-stack mockup of the **searchable evidence matrix** from the project
-primer: a database of biomarkers associated with WEE1-inhibitor response, a web
-GUI to search/filter/visualize it, and a documented API to alter, query, and
-generate insights from it.
+The **searchable evidence matrix** from the project brief: a database of
+biomarkers associated with response to **DNA-damage-response inhibitors** (WEE1,
+ATR, ATM, CHK1/2, DNA-PK, PARP, PKMYT1, POLQ, USP1, DYRK1A/B and others), a web
+GUI to search, filter and visualize it, and a documented API to query it and
+generate insights.
 
-**Everything here uses fabricated dummy data.** The rows tagged `internal_aprea`
-are invented placeholders that only exist to demonstrate the confidential-data
-segregation flag. No real Aprea data is included.
+**The data is real and public.** ~50k evidence rows harvested from
+ClinicalTrials.gov and GDSC, plus a curated dictionary of ~84 DDR agents. Every
+row links back to its source trial, dataset or publication. No Aprea
+confidential data is included, and the schema currently assumes all data is
+public.
+
+**The API is read-only.** Rows enter the database only through the curation
+pipeline (`ddr_scavenger/` → `backend/ingest.py`), never through the web app.
+See [Altering the data](#altering-the-data).
 
 ---
 
@@ -16,20 +23,25 @@ segregation flag. No real Aprea data is included.
 ```
                  http (Vite proxy /api -> :8000)
   ┌────────────────────┐        ┌───────────────────────────┐        ┌───────────────┐
-  │  React + Recharts  │  --->  │  FastAPI (Python)         │  --->  │  SQLite file  │
-  │  (frontend/, :5173)│        │  CRUD + search + insights │        │  (wee1.db)    │
+  │  React + Recharts  │ ─read─▶│  FastAPI (Python)         │ ─read─▶│  SQLite file  │
+  │  (frontend/, :5173)│        │  search + insights        │        │  (wee1.db)    │
   └────────────────────┘        │  (backend/, :8000)        │        └───────────────┘
-                                └───────────────────────────┘
-                                       │  auto-docs
-                                       ▼
-                                 /docs (Swagger UI), /redoc
+                                └───────────────────────────┘                ▲
+                                       │  auto-docs                          │ write
+                                       ▼                                     │
+                                 /docs (Swagger UI), /redoc      ddr_scavenger/ → ingest.py
 ```
 
-- **Database: SQLite** — zero-config, single file (`backend/wee1.db`), created and
-seeded automatically on first launch. Chosen because it "runs locally with
-little setup" and needs no server process.
+- **Database: SQLite** — zero-config, single file (`backend/wee1.db`), created on
+first launch and loaded from `backend/data/*.json`. Chosen because it "runs
+locally with little setup" and needs no server process. Production swaps in Cloud
+SQL Postgres via `DATABASE_URL` with no code change.
 - **Backend: FastAPI + SQLModel** — typed models, automatic interactive API docs.
 - **Frontend: Vite + React + Recharts** — search UI + charts.
+
+Note the one-way arrows: the web app can only read. The single writer is
+`ingest.py`, run deliberately from a terminal, which keeps every row traceable
+to a harvested source.
 
 Why this stack: it's the lightest way to get a real relational DB, a documented
 HTTP API, and a modern React UI running locally with two commands.
@@ -53,8 +65,13 @@ uvicorn main:app --reload
 ```
 
 Backend is now at **[http://localhost:8000](http://localhost:8000)**, interactive docs at
-**[http://localhost:8000/docs](http://localhost:8000/docs)**. On first run it creates `wee1.db` and seeds ~220
-dummy rows.
+**[http://localhost:8000/docs](http://localhost:8000/docs)**. On first run it creates `wee1.db` and loads the
+curated data from `backend/data/` (~84 compounds, ~50k evidence rows); later runs
+see the populated tables and skip the load.
+
+> `backend/data/*.json` is git-ignored (the evidence file alone is ~84 MB), so a
+> fresh clone starts empty. Regenerate it with the pipeline in `ddr_scavenger/`,
+> or point `DATABASE_URL` at an already-populated database.
 
 ### Terminal 2 — frontend
 
@@ -72,7 +89,10 @@ Open **[http://localhost:5173](http://localhost:5173)**.
 
 ### Reset the database
 
-Stop the backend, delete `backend/wee1.db`, and restart — it re-seeds fresh.
+Stop the backend and run `python ingest.py --recreate` from `backend/`, which
+drops the tables and reloads them from `data/`. Use this after any schema change;
+a plain `ingest.py` sees existing rows and skips. Deleting `backend/wee1.db` and
+restarting works too.
 
 ### Local config (optional)
 
@@ -88,7 +108,7 @@ Postgres locally. Leaving them unset keeps the two-command quickstart above.
 
 ## Using the GUI
 
-Two tabs:
+Three tabs:
 
 1. **Evidence Explorer** — free-text search (compound / alias / biomarker /
    indication / citation / target / notes), cascading **Target → Drug**
@@ -114,10 +134,13 @@ Two tabs:
 Base URL: `http://localhost:8000`. All data endpoints are under `/api`.
 Full interactive schema (try requests in the browser): `/docs`.
 
-> **Auth in production:** when `REQUIRE_AUTH=true`, every `/api/*` request needs an
+> **Auth:** when `REQUIRE_AUTH=true`, every `/api/*` request needs an
 > `Authorization: Bearer <google-id-token>` header from a verified `@aprea.com`
-> user; otherwise it returns `401`/`403`. Locally auth is off, so the examples
-> below work as-is. `/` and `/healthz` are always public (for health checks).
+> user; otherwise it returns `401`/`403`. Auth is currently off both locally and
+> in production, so the examples below work as-is. `/`, `/health` and `/healthz`
+> are always public (for health checks). Both health paths exist on purpose:
+> Google Front End reserves some `/*z` paths, so `/healthz` can 404 in front of
+> Cloud Run even though FastAPI serves it.
 
 ### ACCESS — read / search
 
@@ -126,19 +149,42 @@ Full interactive schema (try requests in the browser): `/docs`.
 | ------ | -------------------- | --------------------------------------------------------------------- |
 | GET    | `/api/evidence`      | Search/filter/sort/paginate. Returns `{total, limit, offset, items}`. |
 | GET    | `/api/evidence/{id}` | Fetch one row.                                                        |
-| GET    | `/api/vocab`         | Distinct values per categorical field (powers filter dropdowns).      |
+| GET    | `/api/vocab`         | Distinct values per categorical field, plus the cascade maps.         |
 
+`GET /api/vocab` also returns `compounds_by_target` and `combo_partners_by_track`
+(driving the dependent dropdowns) and `controlled`, the closed vocabularies from
+`vocabulary.py` used as a fallback when the database is empty.
 
 `GET /api/evidence` query parameters:
 
-- `q` — free-text across compound/alias/biomarker/indication/citation/combo_partner.
-- **Exact-match filters** — `compound`, `biomarker_name`, `biomarker_type`,
-`indication`, `model_type`, `source_type`, `direction`, `treatment_setting`,
-`predictive_vs_prognostic`, `wee1_specific_vs_combo`, `baseline_vs_pd`,
-`reproducibility`, `evidence_tier`, `is_monotherapy`, `is_aprea_confidential`.
-- **Range/flags** — `max_p_value`, `min_year`, `include_confidential` (default true).
+- `q` — free-text across compound / alias / target / biomarker / indication /
+citation / combo_partner / notes.
+- **Drug & target** — `target`, `target_family`, `compound`.
+- **Cancer type** — `indication`, `indication_category`.
+- **Regimen** — `combination_track` (`monotherapy` | `chemotherapy` |
+`radiotherapy` | `targeted_agent`), `combo_partner`, `is_monotherapy`, and
+`therapy_mode` (`all` | `mono` | `combo`, the segmented control's filter;
+`is_monotherapy` wins if both are given).
+- **Biomarker & assay** — `biomarker_name`, `biomarker_type`, `biomarker_scope`,
+`assay_modality`, `specimen_type`, `specimen_timing`, `perturbation_type`.
+- **Evidence & outcome** — `source_type`, `model_type`, `direction`,
+`treatment_setting`, `predictive_vs_prognostic`, `target_specific_vs_combo`,
+`baseline_vs_pd`, `reproducibility`, `evidence_tier`, `evidence_basis`,
+`endpoint_class`, `response_metric`.
+- **Ranges** — `max_p_value`, `min_year`.
 - **Paging/sort** — `limit` (1–500, default 50), `offset`, `sort_by`
 (`composite_relevance` default, or a column name), `sort_dir` (`asc`/`desc`).
+
+### DICTIONARY — the controlled drug list
+
+| Method | Path                  | Purpose                                        |
+| ------ | --------------------- | ---------------------------------------------- |
+| GET    | `/api/compounds`      | The DDR agents, ordered by target then name.   |
+| GET    | `/api/compounds/{id}` | Fetch one agent.                               |
+
+Parameters: `target`, `target_family`, `q` (over canonical name / aliases /
+developer), and `include_tool_compounds` (default true; set false to hide
+preclinical probes).
 
 
 
@@ -165,16 +211,23 @@ point `insight_cache.bump_version()` has to be called from each write path.
 ### INSIGHTS — aggregations
 
 
-| Method | Path                                 | Returns                                                     |
-| ------ | ------------------------------------ | ----------------------------------------------------------- |
-| GET    | `/api/insights/summary`              | Headline counts (entries, biomarkers, % predictive, ...).   |
-| GET    | `/api/insights/composition`          | Counts by source type / model type / tier / biomarker type. |
-| GET    | `/api/insights/biomarker-ranking`    | Ranked biomarkers with composite evidence score.            |
-| GET    | `/api/insights/indication-landscape` | Indication × compound grid of sensitivity.                  |
-| GET    | `/api/insights/volcano`              | Per-row effect size vs -log10(p).                           |
+| Method | Path                                 | Returns                                                              |
+| ------ | ------------------------------------ | -------------------------------------------------------------------- |
+| GET    | `/api/insights/summary`              | Headline counts (rows, targets, biomarkers, clinical vs preclinical). |
+| GET    | `/api/insights/composition`          | Counts by target, regimen track, indication category, perturbation.   |
+| GET    | `/api/insights/biomarker-ranking`    | Ranked biomarkers with the eight-dimension composite score.           |
+| GET    | `/api/insights/indication-landscape` | Indication × compound (or × target) grid of sensitivity.              |
+| GET    | `/api/insights/volcano`              | Per-row effect size vs -log10(p).                                     |
+| GET    | `/api/insights/target-overview`      | Per-target rollups (rows, drugs, biomarkers, top biomarkers).         |
 
 
-All insight endpoints accept `include_confidential` (bool).
+Every insight endpoint accepts the same optional scoping filters — `target`,
+`combination_track`, `indication_category`, `evidence_tier` and
+`perturbation_type` — so any panel can be recomputed for one slice of the matrix.
+`indication-landscape` additionally accepts `by` (`compound` or `target`).
+
+Results are memoized in-process (see `insight_cache.py`), so repeated unscoped
+requests over all ~50k rows stay fast.
 
 ### Example: Python client
 
@@ -182,12 +235,12 @@ All insight endpoints accept `include_confidential` (bool).
 import requests
 BASE = "http://localhost:8000"
 
-# 1) ACCESS — every strongly-significant CCNE1 result in ovarian cancer
+# 1) ACCESS - strongly-significant CCNE1 results for WEE1 monotherapy
 r = requests.get(f"{BASE}/api/evidence", params={
+    "target": "WEE1",
     "biomarker_name": "CCNE1 amplification",
-    "indication": "High-grade serous ovarian",
+    "therapy_mode": "mono",
     "max_p_value": 0.01,
-    "include_confidential": False,   # public-only view
     "sort_by": "effect_size", "sort_dir": "desc",
 })
 print(r.json()["total"], "rows")
@@ -196,8 +249,9 @@ print(r.json()["total"], "rows")
 drugs = requests.get(f"{BASE}/api/compounds", params={"target": "WEE1"}).json()
 print([d["canonical_name"] for d in drugs])
 
-# 3) INSIGHTS - ranked candidate biomarkers
-ranking = requests.get(f"{BASE}/api/insights/biomarker-ranking").json()
+# 3) INSIGHTS - ranked candidate biomarkers, scoped to one target
+ranking = requests.get(f"{BASE}/api/insights/biomarker-ranking",
+                       params={"target": "WEE1"}).json()
 for row in ranking[:5]:
     print(row["biomarker_name"], row["composite_score"])
 ```
@@ -310,8 +364,10 @@ gcloud secrets add-iam-policy-binding wee1-db-url \
 ```
 
 > `--allow-unauthenticated` means Cloud Run IAM won't block browser requests.
-> **`REQUIRE_AUTH=false`** (current default) leaves the API open — fine for the
-> dummy-data demo. Set `REQUIRE_AUTH=true` once Microsoft Entra ID login is wired.
+> **`REQUIRE_AUTH=false`** (current default) leaves the API readable by anyone
+> with the URL — acceptable only because every row is public data and the API
+> exposes no write routes. Set `REQUIRE_AUTH=true` once Microsoft Entra ID login
+> is wired, and before any confidential data is loaded.
 > The DB password is kept in **Secret Manager** (`wee1-db-url`, mounted as the
 > `DATABASE_URL` env var via `--update-secrets`) rather than as a plaintext
 > `--set-env-vars` value — this is the actual production setup, not just a
@@ -322,7 +378,24 @@ gcloud secrets add-iam-policy-binding wee1-db-url \
 > new `:latest` version into a fresh revision (Cloud Run pins the secret version
 > at revision-creation time, so simply adding a secret version doesn't affect
 > already-running revisions).
-> On first boot the app auto-creates tables and seeds the dummy rows into Postgres.
+
+**Loading data into Cloud SQL.** Startup ingestion is opt-in (`INGEST_ON_STARTUP`,
+default false when `DATABASE_URL` is set), because pushing ~50k rows during boot
+risks tripping Cloud Run's startup probe. Load the data with a one-off Cloud Run
+job on the same VPC/Cloud SQL connection instead, so the database never has to be
+exposed publicly:
+
+```bash
+gcloud run jobs create ddr-ingest --source . --region=us-central1 \
+    --add-cloudsql-instances=INSTANCE_CONNECTION_NAME \
+    --update-secrets=DATABASE_URL=wee1-db-url:latest \
+    --command=python --args='ingest.py','--recreate'
+gcloud run jobs execute ddr-ingest --region=us-central1 --wait
+```
+
+Pass each argument separately as shown; a single comma-joined string is read as
+one filename. Use `--recreate` whenever the schema has changed, since a plain
+run finds the existing rows and skips.
 
 Note the service URL it prints (e.g. `https://wee1-evidence-api-xxxx-uc.a.run.app`).
 
@@ -336,9 +409,10 @@ Variables** (repo *Variables*, not secrets — they're baked into a public bundl
 Auth is **off** in production builds (`VITE_REQUIRE_AUTH=false` in the workflow).
 No login screen until Microsoft Entra ID is added later.
 
-Push to `main`.
-builds with `VITE_BASE=/aprea/searchable-wee1-inhibitor-database/` and publishes
-into that subfolder of the `gh-pages` branch. The app goes live at:
+Push to `main`. Any change under `frontend/` triggers the workflow, which builds
+with `VITE_BASE=/aprea/searchable-wee1-inhibitor-database/` and publishes into
+that subfolder of the `gh-pages` branch. It can also be run by hand from
+**Actions → Deploy frontend → Run workflow**. The app goes live at:
 
 **`https://omri-shavit.github.io/aprea/searchable-wee1-inhibitor-database/`**
 
@@ -389,21 +463,31 @@ when not needed: `gcloud compute instances stop github-actions-runner --zone=us-
 wee1-evidence-app/
 ├── README.md
 ├── DATA_DICTIONARY.md        # authoritative schema: every field, type, units, allowed values
+├── DB_progress_update_8_20_2026.md  # status report: sources, quality, scoring, next steps
 ├── .github/workflows/
 │   └── deploy-frontend.yml   # CI: build + publish frontend to GitHub Pages
+├── ddr_scavenger/            # harvest pipeline (writes backend/data/*.json)
+│   ├── ddr_config.py         # drug dictionary + biomarker regex vocabulary
+│   ├── harvest_ddr.py        # ClinicalTrials.gov + GDSC collection
+│   ├── build_evidence.py     # normalize onto the Evidence schema
+│   └── verify.py             # sanity checks on the generated data
 ├── backend/
-│   ├── main.py               # FastAPI app: protected /api router + public health
+│   ├── main.py               # FastAPI app: read-only /api router + public health
 │   ├── auth.py               # Google ID-token verification + @aprea.com gate
-│   ├── models.py             # SQLModel table + request/response schemas
+│   ├── models.py             # SQLModel tables (Compound, Evidence) + read schemas
 │   ├── database.py           # env-driven engine (SQLite local / Postgres prod)
 │   ├── ingest.py             # the only writer: loads data/*.json into the DB
 │   ├── vocabulary.py         # controlled vocabularies (targets, tracks, endpoints)
 │   ├── insights.py           # analytics: ranking, landscape, composition, volcano
 │   ├── insight_cache.py      # versioned in-process cache for the insight endpoints
+│   ├── tests/                # insight field-contract + cache tests (pytest)
+│   ├── data/                 # generated evidence + compounds JSON (git-ignored)
 │   ├── Dockerfile            # container image for Cloud Run
 │   ├── .dockerignore
+│   ├── .gcloudignore         # keeps .venv/tests out of the Cloud Build upload
 │   ├── .env.example          # REQUIRE_AUTH / GOOGLE_CLIENT_ID / DATABASE_URL / ...
 │   ├── requirements.txt
+│   ├── requirements-dev.txt  # pytest
 │   └── wee1.db               # created at runtime (git-ignored)
 └── frontend/
     ├── package.json
@@ -414,6 +498,7 @@ wee1-evidence-app/
         ├── App.jsx           # auth gate + tabs
         ├── auth.js           # token storage + @aprea.com domain check
         ├── api.js            # fetch wrapper: env base URL + bearer token + 401
+        ├── format.js         # shared display helpers (counts, nulls, EMPTY)
         ├── styles.css
         └── components/
             ├── Login.jsx           # "Sign in with Google" landing page
