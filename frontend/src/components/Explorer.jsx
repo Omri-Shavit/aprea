@@ -206,16 +206,6 @@ export default function Explorer({ vocab }) {
 
   const compoundOptions = useMemo(() => compoundsForTarget(target), [compoundsForTarget, target]);
 
-  // When a family is selected, narrow the Target dropdown to that family's targets.
-  const targetOptions = useMemo(() => {
-    const all = optionsFor("target");
-    if (!targetFamily) return all;
-    const byFamily = vocab?.targets_by_family;
-    if (!byFamily || typeof byFamily !== "object") return all;
-    const allowed = asArray(byFamily[targetFamily]);
-    return allowed.length ? allowed.filter((t) => all.includes(t)) : all;
-  }, [targetFamily, vocab, optionsFor]);
-
   // Prefer values actually present in the data, so a filter never offers an option
   // that returns nothing. Closed vocabularies fall back to the server's canonical
   // list (backend/vocabulary.py) so the controls still work on an empty database.
@@ -227,6 +217,18 @@ export default function Explorer({ vocab }) {
     },
     [vocab]
   );
+
+  // When a family is selected, narrow the Target dropdown to that family's targets.
+  // Must stay below `optionsFor`: the dependency array is evaluated during render,
+  // so referencing it any earlier hits the temporal dead zone and crashes the mount.
+  const targetOptions = useMemo(() => {
+    const all = optionsFor("target");
+    if (!targetFamily) return all;
+    const byFamily = vocab?.targets_by_family;
+    if (!byFamily || typeof byFamily !== "object") return all;
+    const allowed = asArray(byFamily[targetFamily]);
+    return allowed.length ? allowed.filter((t) => all.includes(t)) : all;
+  }, [targetFamily, vocab, optionsFor]);
 
   const narrowedIndications = indicationCategory ? asArray(categoryMap[indicationCategory]) : [];
   const indicationOptions = narrowedIndications.length
